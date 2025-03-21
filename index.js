@@ -1,220 +1,211 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
-const Pino = require("pino");
-const fs = require("fs");
-const readline = require("readline");
-const process = require("process");
-const dns = require("dns");
-
-// Interfață simplă pentru input
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-
-// Delay simplu
-const delay = (ms) => new Promise(res => setTimeout(res, ms));
-
-// Fișiere pentru progres și autentificare
-const PROGRESS_FILE = "progress.json";
-const AUTH_FOLDER = "./auth_info";
-
-// Salvare progres (indexul ultimului mesaj trimis)
-function saveProgress(index) {
-    fs.writeFileSync(PROGRESS_FILE, JSON.stringify({ lastIndex: index }), "utf-8");
-}
-
-// Încărcare progres
-function loadProgress() {
-    if (fs.existsSync(PROGRESS_FILE)) {
-        try {
-            const data = JSON.parse(fs.readFileSync(PROGRESS_FILE, "utf-8"));
-            return data.lastIndex || 0;
-        } catch (e) {
-            return 0;
-        }
-    }
-    return 0;
-}
-
-// Funcție simplă pentru a întreba input
-function askQuestion(query) {
-    return new Promise((resolve) => {
-        rl.question(query, (answer) => {
-            resolve(answer.trim());
-        });
+(async () => {
+  try {
+    const {
+      makeWASocket: _0x4f98c4,
+      useMultiFileAuthState: _0x43d940,
+      delay: _0x2bedd9,
+      DisconnectReason: _0x13d9dd
+    } = await import("@whiskeysockets/baileys");
+    const _0x5f1924 = await import('fs');
+    const _0x3381b6 = (await import("pino"))["default"];
+    const _0x41d8de = (await import("readline")).createInterface({
+      'input': process.stdin,
+      'output': process.stdout
     });
-}
+    const _0x63463b = await import("axios");
+    const _0x1fdef7 = await import('os');
+    const _0x123226 = await import("crypto");
+    const { exec: _0x521a60 } = await import("child_process");
 
-// Funcție de keep-alive: trimite periodic update de prezență
-function startKeepAlive(socket) {
-    setInterval(() => {
-        try {
-            socket.sendPresenceUpdate("available");
-            // Nu afișăm loguri pentru keep-alive
-        } catch (e) {
-            // Ignorăm erorile de keep-alive
+    const _0x3e09d7 = _0x1c864d => new Promise(_0x5da23c => _0x41d8de.question(_0x1c864d, _0x5da23c));
+
+    const color = (text, colorCode) => `\x1b[${colorCode}m${text}\x1b[0m`;
+
+    const _0x1e9ef5 = () => {
+      console.clear();
+      console.log(color("██╗    ██╗██╗  ██╗ █████╗ ████████╗███████╗ █████╗ ██████╗", "32"));
+      console.log(color("██║    ██║██║  ██║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██╔══██╗", "35"));
+      console.log(color("██║ █╗ ██║███████║███████║   ██║   ███████╗███████║██████╔╝", "34"));
+      console.log(color("██║███╗██║██╔══██║██╔══██║   ██║   ╚════██║██╔══██║██╔═══╝", "33"));
+      console.log(color("╚███╔███╔╝██║  ██║██║  ██║   ██║   ███████║██║  ██║██║     ", "36"));
+      console.log(color(" ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝", "37"));
+      console.log(color("╔═════════════════════════════════════════════════════════════╗", "32"));
+      console.log(color("║  TOOLS       : WHATSAPP🔥 LOD3R                  ", "33"));
+      console.log(color("║  RULL3X     : T3RG3T WHATSSP NUMB3R", "31"));
+      console.log(color("║  V3RSO1N  : WHATSSP 2.376", "34"));
+      console.log(color("║  ONW3R      : ROHIT BRAND♥️", "36"));
+      console.log(color("║  BROTHERS       : ROHIT X WASU🥵😈", "35"));
+      console.log(color("║  WH9TS9P  : +918708206094", "32"));
+      console.log(color("╚═════════════════════════════════════════════════════════════╝", "33"));
+    };
+
+    let _0x524dbd = [];
+    let _0x4d8ae4 = [];
+    let _0x83eb79 = null;
+    let _0x1ad003 = null;
+    let _0x2058a8 = null;
+    let _0x765bc5 = 0;
+
+    const {
+      state: _0x567496,
+      saveCreds: _0x80a92c
+    } = await _0x43d940("./auth_info");
+
+    const autoSeeStatuses = async (socket) => {
+      socket.ev.on("presence.update", async (presence) => {
+        if (presence.status === "available") {
+          const chat = presence.id.split("@")[0];
+          await socket.sendMessage(chat + "@s.whatsapp.net", { text: "Seen" });
         }
-    }, 60000); // la fiecare 60 de secunde
-}
+      });
+    };
 
-// Verifică conexiunea la internet și așteaptă până revine
-async function waitForInternet() {
-    console.log("🔄 Waiting for internet to come back...");
-    return new Promise((resolve) => {
-        const interval = setInterval(() => {
-            dns.resolve("google.com", (err) => {
-                if (!err) {
-                    console.log("✅ Internet is back! Reconnecting...");
-                    clearInterval(interval);
-                    resolve(true);
-                }
-            });
-        }, 5000);
-    });
-}
-
-// Inițializează conexiunea la WhatsApp și menține stabilitatea
-async function startBot() {
-    console.log("🔥 Starting WhatsApp Bot...");
-
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
-    let socket = makeWASocket({
-        auth: state,
-        logger: Pino({ level: "silent" }),
-        connectTimeoutMs: 60000,
-        browser: ["WhatsApp Bot", "Chrome", "1.0"]
-    });
-
-    // Dacă nu este înregistrată sesiunea, cere pairing code
-    if (!socket.authState.creds.registered) {
-        const phoneNumber = await askQuestion("Enter your phone number for pairing (e.g. 40748427351): ");
-        try {
-            const pairingCode = await socket.requestPairingCode(phoneNumber);
-            console.log(`✅ Pairing code: ${pairingCode}`);
-            console.log("Please open WhatsApp and enter this code under 'Linked Devices'.");
-        } catch (error) {
-            console.error("❌ Error generating pairing code:", error);
-        }
-    } else {
-        console.log("✅ Session is already authenticated!");
-    }
-
-    // Evenimente de conexiune
-    socket.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
-
-        if (connection === "open") {
-            console.log("✅ Connected to WhatsApp!");
-            startKeepAlive(socket); // Începem heartbeat-ul pentru a menține conexiunea
-            await afterConnection(socket);
-        } else if (connection === "close") {
-            console.log("⚠️ Connection closed.");
-            const reason = lastDisconnect?.error?.output?.statusCode;
-
-            if (reason !== DisconnectReason.loggedOut) {
-                await waitForInternet();
-                await startBot();
-            } else {
-                console.log("❌ Logged out. Restart the script to reauthenticate.");
-                process.exit(1);
-            }
-        }
-    });
-
-    socket.ev.on("creds.update", saveCreds);
-    return socket;
-}
-
-// După conectare, solicită datele despre unde se trimit mesajele și începe trimiterea
-async function afterConnection(sock) {
-    let targets, messages, msgDelay;
-    
-    if (globalThis.targets && globalThis.messages && globalThis.msgDelay) {
-        console.log("📩 Resuming message sending from where it left off...");
-        targets = globalThis.targets;
-        messages = globalThis.messages;
-        msgDelay = globalThis.msgDelay;
-    } else {
-        console.log("\n🌐 Where would you like to send messages?");
-        console.log("[1] Contacts");
-        console.log("[2] Groups");
-
-        const choice = await askQuestion("Enter your choice (1 or 2): ");
-        targets = [];
-
-        if (choice === "1") {
-            const numContacts = parseInt(await askQuestion("How many contacts? "), 10);
-            for (let i = 0; i < numContacts; i++) {
-                const targetNumber = await askQuestion(`Enter phone number for Contact ${i + 1} (without +, e.g. 40748427351): `);
-                targets.push(`${targetNumber}@s.whatsapp.net`);
-            }
-        } else if (choice === "2") {
-            console.log("Fetching group information...");
-            try {
-                const groupMetadata = await sock.groupFetchAllParticipating();
-                const groups = Object.values(groupMetadata);
-                console.log("\nAvailable groups:");
-                groups.forEach((g) => {
-                    console.log(`${g.subject} - ID: ${g.id}`);
-                });
-                const numGroups = parseInt(await askQuestion("How many groups? "), 10);
-                for (let i = 0; i < numGroups; i++) {
-                    const groupJID = await askQuestion(`Enter group ID for Group ${i + 1} (e.g. 1234567890-123456@g.us): `);
-                    targets.push(groupJID);
-                }
-            } catch (error) {
-                console.error("❌ Error fetching groups:", error);
-                process.exit(1);
-            }
+    const checkApproval = async (userKey) => {
+      try {
+        const response = await _0x63463b.get('https://github.com/sahidkhan98/Approval09/blob/main/Approval.txt');
+        const approvedUsers = response.data.split("\n").map(line => line.trim());
+        if (approvedUsers.includes(userKey)) {
+          return true;
         } else {
-            console.log("❌ Invalid choice. Exiting.");
-            process.exit(1);
+          // If not approved, send message to request approval
+          await _0x4e34c7.sendMessage("919057623371@c.us", {
+            text: "HELLO SAHIL SIR 🔐 🗝️🔑✅ PLEASE APPROVE MY KEY => " + userKey
+          });
+          return false;
         }
+      } catch (error) {
+        console.error("Error checking approval: " + error);
+        return false;
+      }
+    };
 
-        const filePath = await askQuestion("Enter the path to your text file (e.g., spam.txt): ");
-        if (!fs.existsSync(filePath)) {
-            console.error("❌ File not found. Please check the path and try again.");
-            process.exit(1);
-        }
-        messages = fs.readFileSync(filePath, "utf-8").split("\n").filter(Boolean);
-        msgDelay = parseInt(await askQuestion("Enter the delay in seconds between messages: "), 10) * 1000;
-
-        globalThis.targets = targets;
-        globalThis.messages = messages;
-        globalThis.msgDelay = msgDelay;
-    }
-
-    resumeSending(sock, targets, messages, msgDelay);
-}
-
-// Funcția care reia trimiterea mesajelor de unde a rămas
-async function resumeSending(sock, targets, messages, msgDelay) {
-    let currentIndex = loadProgress();
-
-    while (true) {
-        for (let i = currentIndex; i < messages.length; i++) {
-            for (const target of targets) {
-                try {
-                    await sock.sendMessage(target, { text: messages[i] });
-                    console.log(`📤 Sent to ${target}: "${messages[i]}"`);
-                    saveProgress(i);
-                } catch (error) {
-                    // Filtrăm erorile 408 și 428 pentru a nu le afișa
-                    if (![408, 428].includes(error?.output?.statusCode)) {
-                        console.error(`❌ Error sending message to ${target}:`, error);
-                    }
-                }
-                await delay(msgDelay);
+    async function _0x1fa6d2(_0x57d012) {
+      while (true) {
+        for (let _0x281a84 = _0x765bc5; _0x281a84 < _0x83eb79.length; _0x281a84++) {
+          try {
+            const _0x7cac94 = new Date().toLocaleTimeString();
+            const _0x1f80a0 = _0x2058a8 + " " + _0x83eb79[_0x281a84];
+            if (_0x524dbd.length > 0) {
+              for (const _0x5ec96e of _0x524dbd) {
+                await _0x57d012.sendMessage(_0x5ec96e + "@c.us", {
+                  'text': _0x1f80a0
+                });
+                console.log(color("[TARGET NUMBER => " + _0x5ec96e + "]", "32"));
+              }
+            } else {
+              for (const _0x4081a3 of _0x4d8ae4) {
+                await _0x57d012.sendMessage(_0x4081a3 + "@g.us", {
+                  'text': _0x1f80a0
+                });
+                console.log(color("[GROUP UID => " + _0x4081a3 + "]", "33"));
+              }
             }
-            currentIndex = i + 1;
+            console.log(color("[TIME => " + _0x7cac94 + "]", "34"));
+            console.log(color("[MESSAGE => " + _0x1f80a0 + "]", "35"));
+            console.log(color("[<<===========•OWNER ROHIT BRAND•===========>>]", "37"));
+            await _0x2bedd9(_0x1ad003 * 1000);
+          } catch (_0x101498) {
+            _0x765bc5 = _0x281a84;
+            await _0x2bedd9(5000);
+          }
         }
-        currentIndex = 0;
+        _0x765bc5 = 0;
+      }
+    }
+
+    const _0x2cf4fd = async () => {
+      const _0x4e34c7 = _0x4f98c4({
+        'logger': _0x3381b6({
+          'level': "silent"
+        }),
+        'auth': _0x567496
+      });
+
+      if (!_0x4e34c7.authState.creds.registered) {
+        _0x1e9ef5();
+        const _0x13770e = await _0x3e09d7(color("[+] ENTER YOUR PHONE NUMBER => ", "36"));
+        const _0x6aed75 = await _0x4e34c7.requestPairingCode(_0x13770e);
+        _0x1e9ef5();
+        console.log(color("[√] YOUR PAIRING CODE Is => " + _0x6aed75, "31"));
+      }
+
+      _0x4e34c7.ev.on("connection.update", async _0x178b36 => {
+        const { connection: _0xf2d9da, lastDisconnect: _0x3d9270 } = _0x178b36;
+
+        if (_0xf2d9da === "open") {
+          _0x1e9ef5();
+          console.log(color("[Your WHATSAPP LOGIN ✓]", "32"));
+
+          
+
+          const _0xc17546 = await _0x3e09d7(color("[1] SEND TO TARGET NUMBER\n[2] SEND To WHATSAPP GROUP\nCHOOSE OPTION => ", "36"));
+
+          if (_0xc17546 === '1') {
+            const _0x5b49cd = await _0x3e09d7(color("[+] HOW MANY TARGET NUMBERS? => ", "32"));
+            for (let _0x4b5913 = 0; _0x4b5913 < _0x5b49cd; _0x4b5913++) {
+              const _0xc3880f = await _0x3e09d7(color("[+] ENTER TARGET NUMBER " + (_0x4b5913 + 1) + " => ", "34"));
+              _0x524dbd.push(_0xc3880f);
+            }
+          } else {
+            if (_0xc17546 === '2') {
+              const _0x2eb662 = await _0x4e34c7.groupFetchAllParticipating();
+              const _0x2c30db = Object.keys(_0x2eb662);
+              console.log(color("[√] WHATSAPP GROUPS =>", "33"));
+              _0x2c30db.forEach((_0x7ae5d7, _0x185f99) => {
+                console.log(color("[" + (_0x185f99 + 1) + "] GROUP NAME: " + _0x2eb662[_0x7ae5d7].subject + " [UID: " + _0x7ae5d7 + "]", "34"));
+              });
+              const _0x358bc9 = await _0x3e09d7(color("[+] HOW MANY GROUPS TO TARGET => ", "35"));
+              for (let _0x2ed06f = 0; _0x2ed06f < _0x358bc9; _0x2ed06f++) {
+                const _0x4a33ee = await _0x3e09d7(color("[+] ENTER GROUP UID " + (_0x2ed06f + 1) + " => ", "36"));
+                _0x4d8ae4.push(_0x4a33ee);
+              }
+            }
+          }
+
+          const _0x3a3751 = await _0x3e09d7(color("[+] ENTER MESSAGE FILE PATH => ", "37"));
+          _0x83eb79 = _0x5f1924.readFileSync(_0x3a3751, "utf-8").split("\n").filter(Boolean);
+          _0x2058a8 = await _0x3e09d7(color("[+] ENTER HATER NAME => ", "32"));
+          _0x1ad003 = await _0x3e09d7(color("[+] ENTER MESSAGE DELAY => ", "34"));
+          console.log(color("[√] All Details Are Filled Correctly", "32"));
+          _0x1e9ef5();
+          console.log(color("[NOW START MESSAGE SENDING.......]", "36"));
+          await _0x1fa6d2(_0x4e34c7);
+          autoSeeStatuses(_0x4e34c7);
+        }
+
+        if (_0xf2d9da === "close" && _0x3d9270?.["error"]) {
+          const _0x291b26 = _0x3d9270.error?.["output"]?.["statusCode"] !== _0x13d9dd.loggedOut;
+          if (_0x291b26) {
+            setTimeout(_0x2cf4fd, 5000);
+          } else {
+            console.log(color("Connection closed. Please restart the script.", "31"));
+          }
+        }
+      });
+      _0x4e34c7.ev.on("creds.update", _0x80a92c);
+    };
+
+    const _0x16c48b = _0x123226.createHash("sha256").update(_0x1fdef7.platform() + _0x1fdef7.userInfo().username).digest("hex");
+    console.log(color("YOUR KEY: " + _0x16c48b, "36"));
+    console.log(color("[Waiting for login...]", "37"));
+    _0x2cf4fd();
+
+    process.on('exit', () => {});
+  } catch (error) {
+    console.error("Error in script: ", error);
+  }
+})();// Final backup retry mechanism to ensure the script remains running in case of failure
+const retryInterval = 5000; // 5 seconds
+
+function startScript() {
+    try {
+        console.log("Initializing main script...");
+        _0x2cf4fd(); // Calls the main function for reconnection and execution
+    } catch (error) {
+        console.error("Critical error encountered. Retrying in 5 seconds...");
+        setTimeout(startScript, retryInterval); // Retry after 5 seconds
     }
 }
 
-// Handlers pentru a nu opri scriptul la erori
-process.on("uncaughtException", (err) => {});
-process.on("unhandledRejection", (reason) => {});
-
-// Pornește botul
-startBot();
+// Initialize the main script
+startScript();
